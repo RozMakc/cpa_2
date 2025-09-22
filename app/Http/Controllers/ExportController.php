@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lead;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ExportController extends Controller
 {
@@ -181,5 +183,214 @@ class ExportController extends Controller
 
             fclose($file);
         }, 200, $headers);
+    }
+
+    public function export(Request $request)
+    {
+        try {
+            if (!Auth::check()) {
+                return response()->json(['error' => 'Не авторизован'], 401);
+            }
+
+            $request->validate([
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after_or_equal:start_date',
+                'fields' => 'required',
+                'format' => 'required|in:csv,xlsx',
+                'project_id' => 'required|exists:projects,id'
+            ]);
+
+            $project = Project::findOrFail($request->project_id);
+            $startDate = $request->start_date;
+            $endDate = $request->end_date;
+            $fields = explode(',', $request->fields);
+            $format = $request->format;
+
+            // Получаем fieldMappings проекта (как в методе show)
+            $fieldMappings = $project->getIntegrationFieldMappings();
+
+            // Получаем лиды за указанный период
+            $leads = Lead::where('project_id', $project->id)
+                ->whereNotNull('created_at')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->with(['user', 'offer'])
+                ->get();
+
+            if ($leads->isEmpty()) {
+                return response()->json(['error' => 'Нет данных для выгрузки'], 404);
+            }
+
+            if ($format === 'csv') {
+                return $this->exportToCsv($leads, $fields, $project, $fieldMappings, $startDate, $endDate);
+            }
+
+            return response()->json(['error' => 'Формат не поддерживается'], 400);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['error' => 'Ошибка валидации: ' . $e->getMessage()], 422);
+        } catch (\Exception $e) {
+            Log::error('Export error: ' . $e->getMessage());
+            return response()->json(['error' => 'Ошибка при выгрузке данных: ' . $e->getMessage()], 500);
+        }
+    }
+
+
+    private function exportToCsv($leads, $fields, $project, $fieldMappings, $startDate, $endDate)
+    {
+        $fileName = "lea2ds_{$project->name}_{$startDate}_{$endDate}.csv";
+        
+        $headers = [
+            'Content-Type' => 'text/csv; charset=utf-8',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0'
+        ];
+
+        $callback = function() use ($leads, $fields, $fieldMappings) {
+            $output = fopen('php://output', 'w');
+            
+            // Добавляем BOM для корректного отображения кириллицы в Excel
+            fwrite($output, "\xEF\xBB\xBF");
+            
+            // Заголовки (используем оригинальные названия полей как в таблице)
+            $headers = array_map(function($field) use ($fieldMappings) {
+                return $this->getFieldLabel($field, $fieldMappings);
+            }, $fields);
+            
+            fputcsv($output, $headers, ';');
+            
+            // Данные
+            foreach ($leads as $lead) {
+                $row = [];
+                foreach ($fields as $field) {
+                    try {
+                        $row[] = $this->getLeadFieldValue($lead, $field, $fieldMappings);
+                    } catch (\Exception $e) {
+                        $row[] = '';
+                        Log::warning("Error processing field {$field} for lead {$lead->id}: " . $e->getMessage());
+                    }
+                }
+                fputcsv($output, $row, ';');
+            }
+            
+            fclose($output);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Точная копия логики из фронтенда getLeadFieldValue
+     */
+    private function getLeadFieldValue($lead, $fieldName, $fieldMappings)
+    {
+        // Проверяем есть ли маппинг для этого поля
+        $mappedField = $fieldMappings[$fieldName] ?? null;
+
+        // Если есть маппинг и поле начинается с "additional_data."
+        if ($mappedField) {
+            if (str_starts_with($mappedField, 'additional_data.')) {
+                $additionalDataField = str_replace('additional_data.', '', $mappedField);
+                return $lead->additional_data[$additionalDataField] ?? '-';
+            }
+            return $lead->{$mappedField} ?? '-';
+        }
+
+        // Стандартные поля (точно такие же как во фронтенде)
+        $standardFields = [
+            'id' => $lead->id ?? '-',
+            'name' => $lead->name ?? '-',
+            'email' => $lead->email ?? '-',
+            'phone' => $lead->phone ?? '-',
+            'status' => $this->getStatusLabel($lead->status ?? 'new'),
+            'price' => $lead->price ?? '-',
+            'currency' => $lead->currency ?? '-',
+            'created_at' => $lead->created_at ? $lead->created_at->format('d.m.Y H:i') : '----',
+            'user' => $lead->user ? $lead->user->name . ' (#' . $lead->user->id . ')' : '-',
+            'offer' => $lead->offer ? $lead->offer->name : 'Нет',
+        ];
+
+        if ($fieldName === 'created_at') {
+            if ($lead->created_at) {
+                return $lead->created_at->format('d.m.Y H:i');
+            }
+            // Если created_at null, попробуем использовать другую дату или текущее время
+            return $lead->updated_at ? $lead->updated_at->format('d.m.Y H:i') : now()->format('d.m.Y H:i');
+        }
+        // Если поле стандартное
+        if (array_key_exists($fieldName, $standardFields)) {
+            return $standardFields[$fieldName];
+        }
+
+        // Если поле в additional_data (прямой доступ)
+        if ($lead->additional_data && array_key_exists($fieldName, $lead->additional_data)) {
+            return $lead->additional_data[$fieldName] ?? '-';
+        }
+
+        // Если поле есть непосредственно в lead
+        if (isset($lead->{$fieldName})) {
+            return $lead->{$fieldName};
+        }
+
+        return '-';
+    }
+
+    /**
+     * Функция для получения читаемых названий полей для заголовков CSV
+     */
+    private function getFieldLabel($fieldName, $fieldMappings)
+    {
+        // Маппинг русских названий для стандартных полей
+        $russianLabels = [
+            'id' => 'ID',
+            'name' => 'Имя',
+            'email' => 'Email',
+            'phone' => 'Телефон',
+            'status' => 'Статус',
+            'price' => 'Цена',
+            'currency' => 'Валюта',
+            'created_at' => 'Дата создания',
+            'user' => 'Менеджер',
+            'offer' => 'Оффер',
+            'is_counted' => 'Засчитан',
+            'comment' => 'Комментарий',
+        ];
+
+        // Если есть маппинг, пытаемся получить название из visible_fields проекта
+        if (isset($fieldMappings[$fieldName])) {
+            // Здесь можно добавить логику получения названия из настроек проекта
+            // Пока возвращаем оригинальное название поля
+            return $russianLabels[$fieldName] ?? $fieldName;
+        }
+
+        return $russianLabels[$fieldName] ?? $fieldName;
+    }
+
+    private function getStatusLabel($status)
+    {
+        $statuses = [
+            'new' => 'Новый',
+            'invited' => 'Приглашен',
+            'accepted' => 'Принят',
+            'no_answer' => 'Недозвон',
+            'self_rejected' => 'Самоотказ',
+            'rejected' => 'Отказ',
+            'other' => 'Прочее',
+            'invalid_number' => 'Некорректный номер',
+            'duplicate' => 'Дубль',
+            'test' => 'Тест'
+        ];
+        
+        return $statuses[$status] ?? $status;
+    }
+
+    private function exportToExcel($data, $fields, $project, $startDate, $endDate)
+    {
+        // Реализация экспорта в Excel с использованием библиотеки like Maatwebsite/Laravel-Excel
+        // или простой реализации через PHPOffice
+        return response()->json([
+            'error' => 'Excel export not implemented yet'
+        ], 501);
     }
 }

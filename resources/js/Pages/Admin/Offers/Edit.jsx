@@ -6,12 +6,13 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { TrashBinIcon, PlusIcon } from '@/icons';
 
-export default function Edit({ offer, categories, countries }) {
+export default function Edit({ offer, categories, countries,integrations }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         _method: 'PUT',
         name: offer.name || '',
         description: offer.description || '',
-        category_id: offer.category_id || '',
+        category_id: offer.category_id || null,
+        integration_id: offer.integration?.id || null,
         prices: offer.prices?.length > 0 ? offer.prices : [{ country_id: '', price: '' }],
         links: offer.links?.length > 0 ? offer.links.map(link => link.url) : [''],
         image: null
@@ -104,6 +105,22 @@ export default function Edit({ offer, categories, countries }) {
                                         {errors.description && (
                                             <p className="text-red-500 text-sm mt-1">{errors.description}</p>
                                         )}
+                                    </div>
+
+
+                                    <div>
+                                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Интеграция</label>
+                                        <div className="relative">
+                                        <select onChange={(e) => setData('integration_id', e.target.value)} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 pr-11 text-sm shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 text-gray-400 dark:text-gray-400">
+                                            <option value="" selected className="text-gray-700 dark:bg-gray-900 dark:text-gray-400">Select a integration</option>
+                                            {integrations.length && integrations.map(integration => (
+                                                <option selected={integration.id == data.integration_id} value={integration.id} className="text-gray-700 dark:bg-gray-900 dark:text-gray-400">{integration.name}</option>
+                                            ))}
+                                        </select>
+                                        <svg className="absolute text-gray-700 dark:text-gray-400 right-3 top-1/2 -translate-y-1/2 pointer-events-none" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                            <path d="M4.79175 8.02075L10.0001 13.2291L15.2084 8.02075" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                        </div>
                                     </div>
                                 </div>
 

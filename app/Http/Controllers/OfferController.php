@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Country;
+use App\Models\Integration;
 use App\Models\Offer;
 use App\Models\OfferCategory;
 use Illuminate\Http\Request;
@@ -24,15 +25,18 @@ class OfferController extends Controller
         ]);
     }
 
+    
     /**
      * Show the form for creating a new resource.
      */
     public function create()
     {
         $categories = OfferCategory::where('is_active', 1)->get();
+        $integrations = Integration::where('is_active', 1)->get();
         $countries = Country::all();
         return Inertia::render('Admin/Offers/Create', [
             'categories' => $categories,
+            'integrations' => $integrations,
             'countries' => $countries,
         ]);
     }
@@ -46,6 +50,7 @@ class OfferController extends Controller
             'name' => 'required|string',
             'description' => 'required|string',
             'category_id' => 'required|exists:offer_categories,id',
+            'integration_id' => 'required|exists:integrations,id',
             'links' => 'required|array',
             'links.*' => 'required|url',
             'prices' => 'required|array',
@@ -82,7 +87,9 @@ class OfferController extends Controller
             })->toArray();
             $offer->links()->createMany($linksData);
             
-
+            if (array_key_exists('integration_id', $validated)) {
+                $offer->syncIntegration($validated['integration_id']);
+            }
             if ($request->hasFile('image')) {
                 $imagePath = $request->file('image')->store('offers', 'public');
                 $offer->update(['image_path' => $imagePath]);
@@ -108,15 +115,17 @@ class OfferController extends Controller
      */
     public function show(Offer $offer)
     {
-        $offer->load(['prices', 'prices.country', 'links', 'category']);
+        $offer->load(['prices', 'prices.country', 'links', 'category', 'integration']);
         
         if(Auth::user()->hasRole('admin')){
             $categories = OfferCategory::where('is_active', 1)->get();
             $countries = Country::all();
+            $integrations = Integration::where('is_active', 1)->get();
             return Inertia::render('Admin/Offers/Edit', [
                 'offer' => $offer,
                 'categories' => $categories,
                 'countries' => $countries,
+                'integrations' => $integrations,
             ]);
         }
 
@@ -142,6 +151,7 @@ class OfferController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:offer_categories,id',
+            'integration_id' => 'required|exists:integrations,id',
             'prices' => 'required|array',
             'prices.*.country_id' => 'sometimes|nullable|exists:countries,id',
             'prices.*.price' => 'required|numeric|min:0',
@@ -170,6 +180,9 @@ class OfferController extends Controller
             })->toArray();
             $offer->prices()->createMany($pricesData);
 
+            if (array_key_exists('integration_id', $validated)) {
+                $offer->syncIntegration($validated['integration_id']);
+            }
 
             $existingLinks = $offer->links;
             $newLinks = $validated['links'];

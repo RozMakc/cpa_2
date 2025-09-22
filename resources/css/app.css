@@ -777,3 +777,19 @@ span.flatpickr-weekday,
 .simplebar-scrollbar.simplebar-visible:before {
   @apply opacity-100;
 }
+
+.saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Анимация загрузки */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.loading {
+  animation: pulse 1.5s infinite;
+}

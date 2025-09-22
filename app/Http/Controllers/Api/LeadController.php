@@ -9,6 +9,7 @@ use App\Models\Lead;
 use App\Models\Link;
 use App\Models\Offer;
 use App\Models\OfferLink;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -31,118 +32,210 @@ class LeadController extends Controller
 
     public function postback(Request $request, $resource)
     {
-        Log::info($resource);
-        Log::info($request->all());
-
-        $apikey = $request->apikey;
-        $integration = Integration::where('name', $resource)->where('apikey', $apikey)->first();
-
-        if(!$integration){
-            return response()->json(['status' => 'error', 'message' => 'Wrong ApiKey!']);
+        Log::info("Postback received for resource: {$resource}");
+        Log::info('Request data:', $request->all());
+    
+        // Ищем интеграцию по имени и API ключу
+        $integration = Integration::where('name', $resource)
+            ->where('apikey', $request->apikey)
+            ->where('is_active', true)
+            ->first();
+    
+        if (!$integration) {
+            Log::warning("Integration not found or inactive: {$resource}");
+            return response()->json(['status' => 'error', 'message' => 'Wrong ApiKey or integration inactive!']);
         }
-
-        $data = explode(':', $request->utm_campaign);
-        //if(count($data) < 3){
-        //    return response()->json(['status' => 'error']);
-        //}
-
-
-        $offer_id = isset($data[1]) ? $data[1] : null;
-        $link_id = isset($data[2]) ? $data[2] : null;
-        $user_id = (isset($data[0]) && $data[0] != '') ? $data[0] : null;
-        $sub1 = null;
-        $sub2 = null;
-        $sub3 = null;
-        $sub4 = null;
-        $sub5 = null;
-
-        if($link_id || $offer_id){
-            $link = Link::where('user_id', $user_id)->where('id', $link_id)->first();
-            if($link){
-                $offer = Offer::findOrFail($link->offer_id);
-            }else{
-                $offer = Offer::findOrFail($offer_id);
-            }
-        }
-
-
-        $country_req = $request->citizenship == 'РФ' ? 'RU' : $request->citizenship;
-
-        $money=0;
-
-        if(!isset($offer)){
-            $offer = Offer::first();
-        }
-
-
-        if(isset($offer) && $country_req){
-            $offer_id = $offer->id;
-            $country = Country::where('iso_name', $country_req)->first();
-            if($country){
-                $price = $offer->prices()->where('country_id', $country->id)->first();             
-            }
-        }
-        if(isset($offer) && !$price){
-            $price = $offer->prices()->where('country_id', 'RU')->first();
-            if(!isset($price)){
-                $price = $offer->prices()->first();
-            }
-        }
-
-        if(isset($price)){
-            $money = $price->price;
-        }
-
-        if(isset($link)){
-            $sub1 = $link->sub1;
-            $sub2 = $link->sub2;
-            $sub3 = $link->sub3;
-            $sub4 = $link->sub4;
-            $sub5 = $link->sub5;
-        }
-        
+    
         try {
-            $name = $request->lastname ? $request->lastname : 'клиент';
-            $name .= $request->firstname ? ' '.$request->firstname : '';
+            $allRequestData = $request->all();
+            // Преобразуем данные из API в формат системы используя маппинг
+            $mappedData = $integration->mapApiData($allRequestData);
 
-            $lead = Lead::create([
-                'name' => $name,
-                'firstname' =>  $request->firstname ? $request->firstname : '',
-                'lastname' =>  $request->lastname ? $request->lastname : '',
-                'gender' =>  $request->gender ? $request->gender : '',
-                'birthday' =>  $request->birthday ? $request->birthday : '',
-                'address' =>  $request->address ? $request->address : '',
-                'citizenship' => $request->citizenship ? $request->citizenship : '',
-                'email' => $request->email ? $request->email : '',
-                'phone' => $request->phone ? $request->phone : '',
-                'user_id' =>$user_id,
-                'offer_id' => $offer_id,
-                'sub1' =>$sub1,
-                'sub2' =>$sub2,
-                'sub3' =>$sub3,
-                'sub4' =>$sub4,
-                'sub5' =>$sub5,
-                'utm_source' =>$request->utm_source,
-                'utm_medium' =>$request->utm_medium,
-                'utm_campaign' =>$request->utm_campaign,
-                'utm_term' =>$request->utm_term,
-                'utm_content' =>$request->utm_content,
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'price' => $money
-            ]);
+            $leadData = $this->prepareLeadData($mappedData, $allRequestData, $request, $integration);
 
+            $lead = Lead::create($leadData);
+    
+            if (isset($leadData['project_id'])) {
+                $lead->project_id = $leadData['project_id'];
+                $lead->save();
+            }
+    
+            Log::info("Lead created successfully: {$lead->id}");
+    
             return response()->json([
+                'status' => 'success',
                 'data' => $lead,
                 'message' => 'Lead created successfully'
             ], 201);
-
+    
         } catch (\Exception $e) {
+            Log::error("Failed to create lead: " . $e->getMessage());
             return response()->json([
-                'error' => 'Failed to create lead',
-                'message' => $e->getMessage()
+                'status' => 'error',
+                'message' => 'Failed to create lead: ' . $e->getMessage()
             ], 500);
         }
+    }
+    
+    protected function prepareLeadData(array $mappedData, array $allRequestData, Request $request, Integration $integration): array
+    {
+        // Основные данные
+        $leadData = array_merge($mappedData, [
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'integration_id' => $integration->id,
+        ]);
+
+        // Обрабатываем UTM параметры
+        $projectData = $this->processUtmParameters($request, $integration);
+        $leadData = array_merge($leadData, $projectData);
+
+        // Определяем цену
+        $leadData['price'] = $this->determinePrice($request, $projectData['offer_id'] ?? null);
+
+        // Все остальные данные, которые не попали в основные поля
+        $additionalData = [];
+        $fillableFields = (new Lead())->getFillable();
+
+        foreach ($allRequestData as $key => $value) {
+            // Пропускаем служебные поля
+            if (in_array($key, ['apikey', '_token'])) {
+                continue;
+            }
+
+            // Если поле не fillable и не обработано ранее - добавляем в дополнительные
+            if (!in_array($key, $fillableFields) && !array_key_exists($key, $leadData)) {
+                $additionalData[$key] = $value;
+            }
+        }
+
+        // Добавляем дополнительные данные
+        if (!empty($additionalData)) {
+            $leadData['additional_data'] = $additionalData;
+        }
+
+        return $leadData;
+    }
+
+    /**
+     * Обработка UTM параметров и определение проекта/оффера
+     */
+    protected function processUtmParameters(Request $request, Integration $integration): array
+    {
+        $result = [
+            'user_id' => null,
+            'offer_id' => null,
+            'project_id' => null,
+            'sub1' => null,
+            'sub2' => null,
+            'sub3' => null,
+            'sub4' => null,
+            'sub5' => null,
+        ];
+    
+        $utmCampaign = $request->utm_campaign;
+        
+        if (!$utmCampaign) {
+            return $result;
+        }
+    
+        $data = explode(':', $utmCampaign);
+        
+        $userId = $data[0] ?? null;
+        $offerId = $data[1] ?? null;
+        $linkId = $data[2] ?? null;
+    
+        if ($linkId && $userId) {
+            $link = Link::where('user_id', $userId)
+                ->where('id', $linkId)
+                ->first();
+    
+            if ($link) {
+                $result['user_id'] = $userId;
+                $result['offer_id'] = $link->offer_id;
+                $result['sub1'] = $link->sub1;
+                $result['sub2'] = $link->sub2;
+                $result['sub3'] = $link->sub3;
+                $result['sub4'] = $link->sub4;
+                $result['sub5'] = $link->sub5;
+    
+                $project = Project::where('status', 'active')
+                ->where(function ($query) {
+                    $query->where('start_date', '<=', now())
+                          ->orWhereNull('start_date'); // Если start_date может быть null
+                })
+                ->where('offer_id', $link->offer_id)
+                ->first();
+    
+                if ($project) {
+                    $result['project_id'] = $project->id;
+                }
+            }
+        }
+        // Если линка нет, но есть оффер
+        elseif ($offerId) {
+            $result['offer_id'] = $offerId;
+            $result['user_id'] = $userId;
+    
+            $project = Project::where('status', 'active')
+            ->where(function ($query) {
+                $query->where('start_date', '<=', now())
+                      ->orWhereNull('start_date'); // Если start_date может быть null
+            })
+            ->where('offer_id', $offerId)
+            ->first();
+    
+            if ($project) {
+                $result['project_id'] = $project->id;
+            }
+        }
+    
+        $utmFields = [
+            'utm_source' => $request->utm_source,
+            'utm_medium' => $request->utm_medium,
+            'utm_campaign' => $request->utm_campaign,
+            'utm_term' => $request->utm_term,
+            'utm_content' => $request->utm_content,
+        ];
+    
+        return array_merge($result, $utmFields);
+    }
+    
+    /**
+     * Определение цены лида
+     */
+    protected function determinePrice(Request $request, ?int $offerId): float
+    {
+        if (!$offerId) {
+            return 0;
+        }
+    
+        $offer = Offer::find($offerId);
+        if (!$offer) {
+            return 0;
+        }
+    
+        // Определяем страну из запроса
+        $countryReq = $request->citizenship == 'РФ' ? 'RU' : $request->citizenship;
+        $country = Country::where('iso_name', $countryReq)->first();
+    
+        // Ищем цену для страны
+        if ($country) {
+            $price = $offer->prices()->where('country_id', $country->id)->first();
+            if ($price) {
+                return $price->price;
+            }
+        }
+    
+        // Пробуем цену для России
+        $price = $offer->prices()->where('country_id', 'RU')->first();
+        if ($price) {
+            return $price->price;
+        }
+    
+        // Берем первую доступную цену
+        $price = $offer->prices()->first();
+        return $price ? $price->price : 0;
     }
 
     public function store(Request $request)

@@ -96,17 +96,118 @@ class LeadController extends Controller
         ]);
     }
 
-    public function updateStatus(Lead $lead, Request $request)
+    public function updateComment(Request $request, Lead $lead)
     {
-        $request->validate([
-            'status' => 'required|in:new,hold,completed,canceled'
+        $validated = $request->validate([
+            'comment' => 'nullable|string|max:1000'
         ]);
 
-        $lead->update(['status' => $request->status]);
+        try {
+            $lead->update($validated);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Комментарий сохранен'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибка сохранения'
+            ], 500);
+        }
+    }
 
-        return redirect()->back()->with('success', 'Статус обновлен');
+    public function updateStatus(Request $request, Lead $lead)
+    {
+        $validated = $request->validate([
+            'status' => 'required|string|max:255'
+        ]);
+
+        
+
+        try {
+            $lead->update($validated);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Статус обновлен'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибка сохранения'
+            ], 500);
+        }
+    }
+
+    /**
+     * Обновление поля is_counted на лету
+     */
+    public function updateCounted(Request $request, Lead $lead)
+    {
+        $validated = $request->validate([
+            'is_counted' => 'required|boolean'
+        ]);
+
+        try {
+            $lead->update($validated);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Статус сохранен'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибка сохранения'
+            ], 500);
+        }
     }
     
+    public function bulkUpdate(Request $request)
+    {
+        $request->validate([
+            'lead_ids' => 'required|array',
+            'lead_ids.*' => 'exists:leads,id',
+            'status' => 'sometimes|nullable|string',
+            'is_counted' => 'sometimes|nullable|boolean'
+        ]);
+
+        try {
+            $leadIds = $request->lead_ids;
+            $updateData = [];
+
+            if ($request->has('status') && $request->status != null) {
+                $updateData['status'] = $request->status;
+            }
+
+            if ($request->has('is_counted')) {
+                $updateData['is_counted'] = $request->is_counted;
+            }
+
+            if (empty($updateData)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Нет данных для обновления'
+                ]);
+            }
+
+            Lead::whereIn('id', $leadIds)->update($updateData);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Лиды успешно обновлены',
+                'updated_count' => count($leadIds)
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибка при обновлении лидов: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Show the form for editing the specified resource.
      */

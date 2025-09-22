@@ -24,13 +24,11 @@ class Lead extends Model
         'birthday',
         'address',
         'citizenship',
-        'citizenship',
-        'citizenship',
-        'citizenship',
         'email',
         'phone',
         'comment',
         'status',
+        'is_counted',
         'type',
         'price',
         'comment',
@@ -48,15 +46,75 @@ class Lead extends Model
         'sub5',
         'custom_fields',
         'ip_address',
-        'user_agent'
+        'user_agent',
+        'project_id',
+        'integration_id',
+        'additional_data',
+        'created_at',
     ];
+
+    public function getSafeFillable(): array
+    {
+        return $this->fillable;
+    }
 
     protected $casts = [
         'price' => 'decimal:2',
         'custom_fields' => 'array',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime'
+        'updated_at' => 'datetime',
+        'additional_data' => 'array',
     ];
+
+    public function getAllDataAttribute(): array
+    {
+        $mainData = [
+            'id' => $this->id,
+            'name' => $this->name,
+            'firstname' => $this->firstname,
+            'lastname' => $this->lastname,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'user_id' => $this->user_id,
+            'offer_id' => $this->offer_id,
+            'project_id' => $this->project_id,
+            'integration_id' => $this->integration_id,
+            'price' => $this->price,
+            'status' => $this->status,
+            'ip_address' => $this->ip_address,
+            'user_agent' => $this->user_agent,
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+        ];
+
+        $additionalData = $this->additional_data ?? [];
+
+        return array_merge($mainData, $additionalData);
+    }
+
+    public function getAdditionalDataValue(string $key, $default = null)
+    {
+        return $this->additional_data[$key] ?? $default;
+    }
+
+    public function __get($key)
+    {
+        // Если поле есть в основной модели - возвращаем его
+        if (in_array($key, $this->fillable) || $key === 'id') {
+            return parent::__get($key);
+        }
+
+        // Иначе ищем в additional_data
+        return $this->getAdditionalDataValue($key);
+    }
+
+    public function hasField(string $key): bool
+    {
+        return in_array($key, $this->fillable) || 
+               isset($this->additional_data[$key]) ||
+               $key === 'id';
+    }
+
 
     protected static function boot()
     {
@@ -79,6 +137,16 @@ class Lead extends Model
                 $model->user_agent = request()->userAgent();
             }
         });
+    }
+    
+    public function integration()
+    {
+        return $this->belongsTo(Integration::class);
+    }
+    
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function offer(): BelongsTo

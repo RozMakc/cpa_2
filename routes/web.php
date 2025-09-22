@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\FieldController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IntegrationController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\LinkController;
 use App\Http\Controllers\OfferCategoryController;
 use App\Http\Controllers\OfferController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -17,12 +19,14 @@ use Inertia\Inertia;
 Route::get('/activation', [HomeController::class, 'activation'])->middleware('auth')->name('activation');
 Route::get('/goto/{uuid}', [LinkController::class, 'redirect'])->name('link.redirect');
 
+Route::get('/exportCsv', [ExportController::class, 'export'])->name('leads.export');
+
 Route::middleware(['auth', 'activated'])->group(function () {
     Route::get('/', [HomeController::class, 'dashboard']);
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');
 
     Route::resource('offer', OfferController::class);
-    Route::resource('users', UserController::class);
+
 
 
     Route::get('/link', [LinkController::class, 'index'])->name('link.index');
@@ -45,16 +49,46 @@ Route::middleware(['auth', 'activated'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::middleware('role:admin')->group(function () {
-        Route::get('/users', [UserController::class, 'index'])->name('users.index');
-        Route::get('/leads/export-large', [ExportController::class, 'exportLargeLeadsToCsv'])->name('leads.export.large');
-        Route::get('/leads/export', [ExportController::class, 'exportLeadsToCsv'])->name('leads.export');
     
+    Route::middleware('role:admin')->group(function () {
+        Route::resource('users', UserController::class);
+        Route::resource('users', UserController::class);
+
+        Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
+        Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
+    
+        Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
+        Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+        
+        Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
+        Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+
+        
+
+        Route::get('/leads/export-large', [ExportController::class, 'exportLargeLeadsToCsv'])->name('leads.export.large');
+
         Route::post('/integration/newkey/{integration}', [IntegrationController::class, 'newkey'])->name('integration.newkey');
         Route::resource('integration', IntegrationController::class);
         Route::resource('offerCategory', OfferCategoryController::class);
+        Route::resource('fields', FieldController::class);
     });
     
+    Route::middleware(['role:manager|admin'])->group(function () {
+        Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+        Route::get('/leadsGetStats/{project}', [ProjectController::class, 'getStats']);
+
+        
+
+        Route::prefix('leadsUpdateData')->group(function () {
+            Route::post('/bulk-update', [LeadController::class, 'bulkUpdate'])->name('leads.bulk-update');
+            Route::patch('{lead}/comment', [LeadController::class, 'updateComment']);
+            Route::patch('{lead}/status', [LeadController::class, 'updateStatus']);
+            Route::patch('{lead}/is_counted', [LeadController::class, 'updateCounted']);
+        });
+    });
+
+
+
     
     Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
     Route::get('/leads/create', [LeadController::class, 'create'])->middleware('role:admin')->name('leads.create');

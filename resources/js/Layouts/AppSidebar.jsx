@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "@inertiajs/react";
-import { ShoppingBag, LayoutGrid, LinkIcon, ShoppingBasket, Users, MenuIcon, Braces, TableOfContents} from "lucide-react";
+import { Link, usePage } from "@inertiajs/react";
+import { ShoppingBag, LayoutGrid, LinkIcon, ShoppingBasket, Users, MenuIcon, Braces, TableOfContents, Settings2, ChevronDown, SquareGanttChart} from "lucide-react";
 
 import { useSidebar } from "@/context/SidebarContext";
 import { useRoles } from "@/hooks/useRoles";
@@ -8,6 +8,7 @@ import { useRoles } from "@/hooks/useRoles";
 const AppSidebar = () => {
   const { isExpanded, isHovered, isMobileOpen, setIsHovered, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const { hasRole, hasAnyRole } = useRoles()
+  const projects = usePage().props.projects;
 
   const [openSubmenu, setOpenSubmenu] = useState({
     type: "main",
@@ -48,7 +49,21 @@ const AppSidebar = () => {
     },
     */
   ];
-
+  if(hasRole('manager')){
+    navItems = [
+      {
+        icon: <SquareGanttChart />,
+        name: "Проекты",
+        subItems: [
+          ...(projects || []).map(project => ({
+            name: project.name,
+            path: `/projects/${project.id}`,
+            badge: project.status == 'active' ? 'active' : 'inactive'
+        }))
+        ],
+      },
+    ]
+  }
   if(hasRole('admin')){
     navItems = [
       {
@@ -62,6 +77,18 @@ const AppSidebar = () => {
         path: '/offer',
       },
       {
+        icon: <SquareGanttChart />,
+        name: "Проекты",
+        subItems: [
+          { name: "Все", path: "/projects" },
+          ...(projects || []).map(project => ({
+            name: project.name,
+            path: `/projects/${project.id}`,
+            badge: project.status == 'active' ? 'active' : 'inactive'
+        }))
+        ],
+      },
+      {
         icon: <ShoppingBasket />,
         name: "Лиды",
         path: "/leads",
@@ -72,21 +99,20 @@ const AppSidebar = () => {
         path: "/users",
       },
       {
-        icon: <Braces />,
-        name: "Интеграции",
-        path: "/integration",
-      },
-      {
-        icon: <TableOfContents />,
-        name: "Категории",
-        path: "/offerCategory",
+        icon: <Settings2 />,
+        name: "Настройки",
+        subItems: [
+          { name: "Интеграции", path: "/integration" },
+          { name: "Категории", path: "/offerCategory" },
+          { name: "Поля", path: "/fields" },
+        ],
       },
     ];
   }
 
 
   const isActive = useCallback((path) => {
-    return currentPath === path || currentPath.startsWith(path + '/');
+    return currentPath === path;
   }, [currentPath]);
 
   useEffect(() => {
@@ -164,7 +190,7 @@ const AppSidebar = () => {
                 <span className="menu-item-text">{nav.name}</span>
               )}
               {(isExpanded || isHovered || isMobileOpen) && (
-                <ChevronDownIcon
+                <ChevronDown
                   className={`ml-auto w-5 h-5 transition-transform duration-200 ${
                     openSubmenu.type === menuType && openSubmenu.index === index
                       ? "rotate-180 text-brand-500"

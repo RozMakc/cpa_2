@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Field;
 use App\Models\Integration;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -43,7 +44,7 @@ class IntegrationController extends Controller
         $integration->save();
 
         
-        return redirect()->route('integration.index')
+        return redirect()->route('integration.edit', $integration->id)
             ->with('success', 'Offer created successfully.');
 
     }
@@ -53,9 +54,7 @@ class IntegrationController extends Controller
      */
     public function show(Integration $integration)
     {
-        return Inertia::render('Admin/Integrations/Edit', [
-            'integrations' => $integration,
-        ]);
+
     }
 
     /**
@@ -63,9 +62,11 @@ class IntegrationController extends Controller
      */
     public function edit(Integration $integration)
     {
-        
+        $fields = $this->getAvailableFields();
+
         return Inertia::render('Admin/Integrations/Edit', [
             'integration' => $integration,
+            'fields' => $fields,
         ]);
     }
 
@@ -76,10 +77,22 @@ class IntegrationController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string',
+            'api_fields' => 'array',
+            'field_mappings' => 'array',
         ]);
 
-        $integration->name = $validated['name'];
-        $integration->save();
+        // Валидация полей API
+        if (isset($validated['api_fields'])) {
+            foreach ($validated['api_fields'] as $index => $field) {
+                if (empty($field['name'])) {
+                    return redirect()->back()->withErrors([
+                        'api_fields' => "Поле API #" . ($index + 1) . " не имеет названия"
+                    ]);
+                }
+            }
+        }
+
+        $integration->update($validated);
 
         return redirect()->back();
     }
@@ -99,5 +112,23 @@ class IntegrationController extends Controller
     {
         $integration->delete();
         return redirect()->back();
+    }
+
+    protected function getAvailableFields(): array
+    {
+        $standardFields = [
+            'firstname' => 'Имя',
+            'lastname' => 'Фамилия',
+            'phone' => ' Номер телефона',
+            'birthday' => 'Дата рождения',
+            'gender' => 'Пол',
+        ];
+        // Кастомные поля из базы данных
+        $customFields = Field::all()->mapWithKeys(function ($field) {
+            return [$field->name => $field->title];
+        })->toArray();
+
+        // Объединяем стандартные и кастомные поля
+        return array_merge($standardFields, $customFields);
     }
 }

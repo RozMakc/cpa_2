@@ -14,7 +14,7 @@ import { useRoles } from '@/hooks/useRoles';
 import PrimaryButton from '../PrimaryButton';
 import LeadStatusSelect from './LeadStatusSelect';
 
-export default function LeadTable({ leads, filters }) {
+export default function LeadTable({ leads }) {
     const { hasRole, hasAnyRole } = useRoles()
 
     return (

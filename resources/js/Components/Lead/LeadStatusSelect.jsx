@@ -4,22 +4,46 @@ import { useState } from 'react';
 export default function LeadStatusSelect({ lead }) {
     const [isUpdating, setIsUpdating] = useState(false);
     
-    const statusConfig = {
-        new: { text: 'Новый', color: 'blue' },
-        hold: { text: 'Холд', color: 'yellow' },
-        completed: { text: 'Завершен', color: 'green' },
-        canceled: { text: 'Отменен', color: 'red' }
-    };
+    const statusOptions = [
+        { value: 'new', label: 'Новый' },
+        { value: 'invited', label: 'Приглашен' },
+        { value: 'accepted', label: 'Принят' },
+        { value: 'no_answer', label: 'Недозвон' },
+        { value: 'self_rejected', label: 'Самоотказ' },
+        { value: 'rejected', label: 'Отказ' },
+        { value: 'other', label: 'Прочее' },
+        { value: 'invalid_number', label: 'Некорректный номер' },
+        { value: 'duplicate', label: 'Дубль' },
+        { value: 'test', label: 'Тест' }
+    ];
 
-    const handleStatusChange = (newStatus) => {
+    const handleStatusChange = async (newStatus) => {
         setIsUpdating(true);
         
-        router.patch(route('leads.status', lead.id), {
-            status: newStatus
-        }, {
-            onFinish: () => setIsUpdating(false),
-            preserveScroll: true
-        });
+        try {
+            const endpoint = `/leadsUpdateData/${lead.id}/status`;
+            const response = await fetch(endpoint, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.message);
+            }
+
+        } catch (error) {
+            console.error('Error saving field:', error);
+            alert('Ошибка сохранения: ' + error.message);
+        } finally {
+            setIsUpdating(false)
+        }
+        
     };
 
     return (
@@ -31,9 +55,9 @@ export default function LeadStatusSelect({ lead }) {
                     disabled={isUpdating}
                     className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 pr-11 text-sm shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 disabled:opacity-50"
                 >
-                    {Object.entries(statusConfig).map(([value, config]) => (
-                        <option key={value} value={value}>
-                            {config.text}
+                    {statusOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                            {option.label}
                         </option>
                     ))}
                 </select>

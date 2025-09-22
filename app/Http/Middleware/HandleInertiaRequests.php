@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -29,6 +31,10 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $projects = [];
+        if(Auth::check()){
+            $projects = Auth::user()->getAllProjects();
+        }
         return [
             ...parent::share($request),
             'app' => [
@@ -40,6 +46,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
                 'roles' => $request->user() ? $request->user()->getRoleNames() : null,
             ],
+            'projects' => $projects
         ];
     }
 }

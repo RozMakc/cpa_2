@@ -91,4 +91,30 @@ class User extends Authenticatable
     {
         return $this->is_stopped;
     }
+
+    public function managedProjects()
+    {
+        return $this->belongsToMany(Project::class, 'project_manager')
+            ->withTimestamps();
+    }
+
+    /**
+     * Получить все проекты, доступные пользователю
+     */
+    public function getAllProjects()
+    {
+        if ($this->hasRole('admin')) {
+            return Project::with(['managers', 'client'])->get();
+        }
+
+        return $this->managedProjects()->with(['client'])->get();
+    }
+
+    /**
+     * Проверить, имеет ли пользователь доступ к проекту
+     */
+    public function canAccessProject(Project $project): bool
+    {
+        return $this->hasRole('admin') || $this->managedProjects->contains($project->id);
+    }
 }

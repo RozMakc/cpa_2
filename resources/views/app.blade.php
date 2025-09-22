@@ -15,7 +15,7 @@
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-title" content="EvoProd" />
-        
+        <meta name="csrf-token" content="{{ csrf_token() }}">
         <!-- Scripts -->
         @routes
         @viteReactRefresh

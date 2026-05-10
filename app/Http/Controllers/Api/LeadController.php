@@ -245,7 +245,7 @@ class LeadController extends Controller
         $this->normalizeTgChannel($request);
 
         $validator = Validator::make($request->all(), [
-            'offer_id' => 'required|exists:offers,id',
+            'offer_id' => 'nullable|exists:offers,id',
             'offer_link_id' => 'nullable|exists:offer_links,id',
             'country_iso' => 'nullable|string',
             'firstname' => 'nullable|string|max:255',
@@ -307,10 +307,17 @@ class LeadController extends Controller
     {
         $this->normalizeTgChannel($request);
 
-        $apiKey = $request->bearerToken() ?: $request->header('X-Api-Key') ?: $request->input('apikey');
-        $expectedApiKey = config('services.external_leads.key');
+        [$apiKey, $apiKeySource] = $this->resolveExternalApiKey($request);
+        $expectedApiKey = trim((string) config('services.external_leads.key'));
 
         if (!$expectedApiKey || !$apiKey || !hash_equals($expectedApiKey, $apiKey)) {
+            Log::warning('External lead API key mismatch', [
+                'source' => $apiKeySource,
+                'received_length' => $apiKey ? strlen($apiKey) : 0,
+                'expected_configured' => $expectedApiKey !== '',
+                'expected_length' => $expectedApiKey !== '' ? strlen($expectedApiKey) : 0,
+            ]);
+
             return response()->json([
                 'error' => 'Unauthorized',
                 'message' => 'Wrong ApiKey',
@@ -363,7 +370,9 @@ class LeadController extends Controller
         }
 
         $validated = $validator->validated();
-        $offer = Offer::findOrFail($validated['offer_id']);
+        $offer = isset($validated['offer_id'])
+            ? Offer::find($validated['offer_id'])
+            : null;
         $additionalData = $validated['additional_data'] ?? [];
 
         foreach ($request->all() as $key => $value) {
@@ -380,7 +389,7 @@ class LeadController extends Controller
             $lead = Lead::create(array_merge($validated, [
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
-                'price' => $validated['price'] ?? $this->findOfferPrice($offer, $request->country_iso),
+                'price' => $validated['price'] ?? ($offer ? $this->findOfferPrice($offer, $request->country_iso) : 0),
                 'additional_data' => $additionalData ?: null,
             ]));
 
@@ -470,6 +479,28 @@ class LeadController extends Controller
                 return;
             }
         }
+    }
+
+    private function resolveExternalApiKey(Request $request): array
+    {
+        $sources = [
+            'Authorization: Bearer' => $request->bearerToken(),
+            'X-Api-Key' => $request->header('X-Api-Key'),
+            'x-api-key' => $request->header('x-api-key'),
+            'Api-Key' => $request->header('Api-Key'),
+            'apikey' => $request->input('apikey'),
+            'api_key' => $request->input('api_key'),
+        ];
+
+        foreach ($sources as $source => $value) {
+            $value = trim((string) $value);
+
+            if ($value !== '') {
+                return [$value, $source];
+            }
+        }
+
+        return [null, 'none'];
     }
 
     private function findOfferPrice(Offer $offer, ?string $countryIso = null): float

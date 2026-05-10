@@ -23,6 +23,14 @@ class DefaultSeeder extends Seeder
             'password' => Hash::make('123123123'),
         ]);
 
+        $user = User::create([
+            'name' => 'User',
+            'email' => 'user@site.com',
+            'phone' => '79000000001',
+            'password' => Hash::make('123123123'),
+        ]);
+
+
         $user->assignRole('admin');
 
     }

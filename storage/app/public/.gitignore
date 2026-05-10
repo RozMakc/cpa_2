@@ -1,2 +1,6 @@
 *
 !.gitignore
+!avatars/
+!avatars/**
+!offers/
+!offers/**

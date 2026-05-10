@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Project extends Model
@@ -14,8 +15,23 @@ class Project extends Model
         'name',
         'start_date',
         'visible_fields',
+        'user_id',
         'client_id',
         'offer_id',
+        'integration_id',
+        'integrations',
+        'parsing_sources',
+        'inviting_sources',
+        'use_own_groups',
+        'mailing_groups',
+        'mailing_phones',
+        'mailing_usernames',
+        'mailing_text',
+        'image_path',
+        'external_id',
+        'sync_status',
+        'sync_error',
+        'synced_at',
         'status',
         'is_private',
     ];
@@ -23,7 +39,22 @@ class Project extends Model
     protected $casts = [
         'start_date' => 'date',
         'visible_fields' => 'array',
+        'integrations' => 'array',
+        'inviting_sources' => 'array',
+        'use_own_groups' => 'boolean',
+        'is_private' => 'boolean',
+        'synced_at' => 'datetime',
     ];
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function integration(): BelongsTo
+    {
+        return $this->belongsTo(Integration::class);
+    }
 
     /**
      * Менеджеры проекта
@@ -38,6 +69,12 @@ class Project extends Model
     }
     public function getIntegration(): ?Integration
     {
+        if ($this->integration_id) {
+            return $this->relationLoaded('integration')
+                ? $this->integration
+                : $this->integration()->first();
+        }
+
         if (!$this->offer_id) {
             return null;
         }

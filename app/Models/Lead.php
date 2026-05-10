@@ -28,6 +28,7 @@ class Lead extends Model
         'phone',
         'comment',
         'tg_channel',
+        'is_our_channel',
         'status',
         'is_counted',
         'type',
@@ -65,6 +66,7 @@ class Lead extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'additional_data' => 'array',
+        'is_our_channel' => 'boolean',
     ];
 
     public function getAllDataAttribute(): array
@@ -83,6 +85,7 @@ class Lead extends Model
             'price' => $this->price,
             'status' => $this->status,
             'tg_channel' => $this->tg_channel,
+            'is_our_channel' => $this->is_our_channel,
             'ip_address' => $this->ip_address,
             'user_agent' => $this->user_agent,
             'created_at' => $this->created_at,

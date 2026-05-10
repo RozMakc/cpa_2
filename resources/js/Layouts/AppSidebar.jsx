@@ -28,8 +28,8 @@ const AppSidebar = () => {
     },
     {
       icon: <ShoppingBag />,
-      name: "Офферы",
-      path: '/offer',
+      name: "Проекты",
+      path: '/projects',
     },
     {
       icon: <ShoppingBasket />,
@@ -70,11 +70,6 @@ const AppSidebar = () => {
         icon: <LayoutGrid />,
         name: "Dashboard",
         path: '/dashboard',
-      },
-      {
-        icon: <ShoppingBag />,
-        name: "Офферы",
-        path: '/offer',
       },
       {
         icon: <SquareGanttChart />,

@@ -1,491 +1,194 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import PrimaryButton from '@/Components/PrimaryButton';
-import Select from '@/Components/Select';
 import Checkbox from '@/Components/Checkbox';
-import { useState, useMemo, useEffect } from 'react';
+import { Plus, Trash2, Upload } from 'lucide-react';
+import { useState } from 'react';
 
-import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    } from '@dnd-kit/core';
-import {
-    SortableContext,
-    sortableKeyboardCoordinates,
-    useSortable,
-    verticalListSortingStrategy,
-    arrayMove
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Eye, EyeOff } from 'lucide-react';
+const fieldClass = 'mt-1 block w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-blue-300 focus:outline-none focus:ring-3 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-blue-800';
+const integrationOptions = ['whatsapp', 'telegram', 'max'];
 
-// Sortable Item Component
-function SortableFieldItem({ fieldName, fieldTitle, isVisible, onToggle, isDragging }) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-    } = useSortable({ id: fieldName });
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-    };
-
-    return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            className={`flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 ${
-                isDragging ? 'shadow-lg z-10' : ''
-            }`}
-        >
-            <div className="flex items-center flex-1 gap-3">
-                {/* Handle for dragging */}
-                <div
-                    {...attributes}
-                    {...listeners}
-                    className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                    <GripVertical size={16} />
-                </div>
-
-                <Checkbox
-                    checked={isVisible}
-                    onChange={(e) => onToggle(fieldName, e.target.checked)}
-                    className=""
-                />
-                
-                <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {fieldTitle}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {fieldName}
-                    </div>
-                </div>
-            </div>
-
-            <button
-                type="button"
-                onClick={() => onToggle(fieldName, !isVisible)}
-                className="ml-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                title={isVisible ? 'Скрыть поле' : 'Показать поле'}
-            >
-                {isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-            </button>
-        </div>
-    );
+function FieldError({ message }) {
+    return message ? <p className="mt-1 text-sm text-red-500">{message}</p> : null;
 }
 
-
-export default function Create({ managers, users, clients, offers, availableFields, standartFields }) {
-    
-    const createDefaultVisibleFields = () => {
-        const defaultFields = {};
-        
-        // Проходим по всем стандартным полям и добавляем их как видимые
-        Object.keys(standartFields || {}).forEach((fieldName, index) => {
-            if (availableFields[fieldName]) {
-                defaultFields[fieldName] = {
-                    visible: true,
-                    order: index,
-                    title: availableFields[fieldName] || standartFields[fieldName] || fieldName
-                };
-            }
-        });
-        
-        return defaultFields;
-    };
-    
+export default function Create({ integrations = [] }) {
+    const [previewUrl, setPreviewUrl] = useState(null);
     const { data, setData, post, processing, errors } = useForm({
         name: '',
-        start_date: new Date().toISOString().split('T')[0],
-        client_id: '',
-        offer_id: '',
-        managers: [],
-        users: [],
-        visible_fields: createDefaultVisibleFields(),
-        is_active: true,
-        is_private: false,
+        integrations: [],
+        parsing_sources: '',
+        inviting_sources: [{ group: '', channel: '' }],
+        mailing_groups: '',
+        use_own_groups: false,
+        mailing_phones: '',
+        mailing_usernames: '',
+        mailing_text: '',
+        image: null,
     });
 
-    const [fieldSearch, setFieldSearch] = useState('');
-
-    // Инициализация полей по умолчанию при загрузке
-    useEffect(() => {
-        // Убедимся что все стандартные поля есть в availableFields
-        const initializedVisibleFields = createDefaultVisibleFields();
-        setData('visible_fields', initializedVisibleFields);
-    }, [availableFields, standartFields]);
-
-    // Фильтрация полей по поиску
-    const filteredFields = useMemo(() => {
-        return Object.entries(availableFields)
-            .filter(([fieldName, fieldTitle]) => 
-                fieldName.toLowerCase().includes(fieldSearch.toLowerCase()) ||
-                fieldTitle.toLowerCase().includes(fieldSearch.toLowerCase())
-            )
-            .reduce((acc, [key, value]) => {
-                acc[key] = value;
-                return acc;
-            }, {});
-    }, [availableFields, fieldSearch]);
-
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
-
-    const handleFieldToggle = (fieldName, isVisible) => {
-        setData('visible_fields', {
-            ...data.visible_fields,
-            [fieldName]: {
-                visible: isVisible,
-                order: Object.keys(data.visible_fields).length,
-                title: availableFields[fieldName]
-            }
-        });
-    };
-    const visibleFieldsInOrder = useMemo(() => {
-        return Object.entries(data.visible_fields)
-            .filter(([_, settings]) => settings.visible)
-            .sort(([_, a], [__, b]) => (a.order || 0) - (b.order || 0))
-            .map(([fieldName]) => fieldName);
-    }, [data.visible_fields]);
-    const handleDragEnd = (event) => {
-        const { active, over } = event;
-
-        if (active.id !== over?.id) {
-            const oldIndex = visibleFieldsInOrder.indexOf(active.id);
-            const newIndex = visibleFieldsInOrder.indexOf(over.id);
-
-            if (oldIndex !== -1 && newIndex !== -1) {
-                const reorderedFields = arrayMove(visibleFieldsInOrder, oldIndex, newIndex);
-                
-                // Update order in visible_fields
-                const updatedVisibleFields = { ...data.visible_fields };
-                reorderedFields.forEach((fieldName, index) => {
-                    if (updatedVisibleFields[fieldName]) {
-                        updatedVisibleFields[fieldName].order = index;
-                    }
-                });
-
-                setData('visible_fields', updatedVisibleFields);
-            }
-        }
+    const setInvite = (index, field, value) => {
+        setData('inviting_sources', data.inviting_sources.map((item, itemIndex) => (
+            itemIndex === index ? { ...item, [field]: value } : item
+        )));
     };
 
-    // Get hidden fields
-    const hiddenFields = useMemo(() => {
-        return Object.entries(availableFields)
-            .filter(([fieldName]) => !data.visible_fields[fieldName]?.visible)
-            .filter(([fieldName, fieldTitle]) => 
-                fieldName.toLowerCase().includes(fieldSearch.toLowerCase()) ||
-                fieldTitle.toLowerCase().includes(fieldSearch.toLowerCase())
-            );
-    }, [availableFields, data.visible_fields, fieldSearch]);
+    const addInvite = () => {
+        setData('inviting_sources', [...data.inviting_sources, { group: '', channel: '' }]);
+    };
 
-    const handleFieldOrderChange = (fieldName, newOrder) => {
-        const updatedFields = { ...data.visible_fields };
-        
-        // Обновляем порядок всех полей
-        Object.entries(updatedFields).forEach(([name, settings]) => {
-            if (name === fieldName) {
-                updatedFields[name].order = newOrder;
-            } else if (updatedFields[name].order >= newOrder) {
-                updatedFields[name].order += 1;
-            }
+    const removeInvite = (index) => {
+        setData('inviting_sources', data.inviting_sources.filter((_, itemIndex) => itemIndex !== index));
+    };
+
+    const handleImage = (file) => {
+        setData('image', file || null);
+        setPreviewUrl(file ? URL.createObjectURL(file) : null);
+    };
+
+    const toggleIntegration = (integration) => {
+        setData('integrations', data.integrations.includes(integration)
+            ? data.integrations.filter(item => item !== integration)
+            : [...data.integrations, integration]
+        );
+    };
+
+    const setUseOwnGroups = (checked) => {
+        setData({
+            ...data,
+            use_own_groups: checked,
+            mailing_groups: checked ? '' : data.mailing_groups,
         });
-
-        setData('visible_fields', updatedFields);
     };
 
     const submit = (e) => {
-        console.log('sub,it')
         e.preventDefault();
-        post(route('projects.store'));
+        post(route('projects.store'), { forceFormData: true });
     };
 
     return (
-        <AuthenticatedLayout
-            pageTitle="Создание проекта"
-        >
-        <Head title="Создание проекта" />
-            <form onSubmit={submit} className="space-y-6">
-                <div className="space-y-6">
-                    <div className="mb-5 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-                        <div class="flex flex-col justify-between gap-5 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center dark:border-gray-800">
-                            <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-                                Создание проекта
-                            </h3>
-                            <Link
-                                href={route('projects.index')}
-                                class="bg-brand-500 shadow-sm hover inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 keychainify-checked" 
-                            >
-                                Назад
-                            </Link>
-                        </div>
-            
-                        {/* Основная информация */}
-                        <div className="p-4 sm:p-6 dark:border-gray-800">
-                            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                                Основная информация
-                            </h2>
+        <AuthenticatedLayout pageTitle="Создание проекта">
+            <Head title="Создание проекта" />
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <InputLabel htmlFor="name" value="Название проекта *" />
-                                    <TextInput
-                                        id="name"
-                                        type="text"
-                                        value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        className="mt-1 block w-full"
-                                        required
-                                    />
-                                    {errors.name && (
-                                        <p className="text-red-500 text-sm mt-1">{errors.name}</p>
-                                    )}
-                                </div>
+            <form onSubmit={submit} className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                <div className="flex flex-col justify-between gap-5 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center dark:border-gray-800">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Создание проекта</h3>
+                    <Link href={route('projects.index')} className="inline-flex items-center justify-center rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                        Назад
+                    </Link>
+                </div>
 
-                                <div>
-                                    <InputLabel htmlFor="start_date" value="Дата начала *" />
-                                    <TextInput
-                                        id="start_date"
-                                        type="date"
-                                        value={data.start_date}
-                                        onChange={(e) => setData('start_date', e.target.value)}
-                                        className="mt-1 block w-full"
-                                        required
-                                    />
-                                    {errors.start_date && (
-                                        <p className="text-red-500 text-sm mt-1">{errors.start_date}</p>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <InputLabel htmlFor="client_id" value="Клиент" />
-                                    <Select
-                                        id="client_id"
-                                        value={data.client_id}
-                                        onChange={(e) => setData('client_id', e.target.value)}
-                                        className="mt-1 block w-full"
-                                    >
-                                        <option value="">Выберите клиента</option>
-                                        {clients.map(client => (
-                                            <option key={client.id} value={client.id}>
-                                                {client.name}
-                                            </option>
-                                        ))}
-                                    </Select>
-                                </div>
-
-                                <div>
-                                    <InputLabel htmlFor="offer_id" value="Оффер" />
-                                    <Select
-                                        id="offer_id"
-                                        value={data.offer_id}
-                                        onChange={(e) => setData('offer_id', e.target.value)}
-                                        className="mt-1 block w-full"
-                                        required
-                                    >
-                                        <option value="">Выберите оффер</option>
-                                        {offers.map(offer => (
-                                            <option key={offer.id} value={offer.id}>
-                                                {offer.name}
-                                            </option>
-                                        ))}
-                                    </Select>
-                                </div>
-
-                                <div className=''>
-                                    <div className="flex items-center mb-3">
-                                        <Checkbox
-                                            id="is_active"
-                                            checked={data.is_active}
-                                            onChange={(e) => setData('is_active', e.target.checked)}
-                                        />
-                                        <InputLabel htmlFor="is_active" value="Активный проект" className="ml-2 !mb-0" />
-                                    </div>
-
-
-                                    <div className="flex items-center">
-                                        <Checkbox
-                                            id="is_private"
-                                            checked={data.is_private}
-                                            onChange={(e) => setData('is_private', e.target.checked)}
-                                        />
-                                        <InputLabel htmlFor="is_private" value="Приватный проект" className="ml-2 !mb-0" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-                            <div className="p-4 sm:p-6 dark:border-gray-800">
-                                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                                    Менеджеры проекта
-                                </h2>
-
-                                <div className="space-y-3">
-                                    {managers.map(manager => (
-                                        <label key={manager.id} className="flex items-center">
-                                            <Checkbox
-                                                checked={data.managers.includes(manager.id)}
-                                                onChange={(e) => {
-                                                    const updatedManagers = e.target.checked
-                                                        ? [...data.managers, manager.id]
-                                                        : data.managers.filter(id => id !== manager.id);
-                                                    setData('managers', updatedManagers);
-                                                }}
-                                            />
-                                            <span className="ml-2 text-gray-700 dark:text-gray-300">
-                                                {manager.name} ({manager.email})
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-                                {errors.managers && (
-                                    <p className="text-red-500 text-sm mt-2">{errors.managers}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className={(data.is_private ? '' : 'hidden') + " rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"}>
-                            <div className="p-4 sm:p-6 dark:border-gray-800">
-                                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                                    Пользователи проекта
-                                </h2>
-
-                                <div className="space-y-3">
-                                    {users.map(user => (
-                                        <label key={user.id} className="flex items-center">
-                                            <Checkbox
-                                                checked={data.users.includes(user.id)}
-                                                onChange={(e) => {
-                                                    const updatedUsers = e.target.checked
-                                                        ? [...data.users, user.id]
-                                                        : data.users.filter(id => id !== user.id);
-                                                    setData('users', updatedUsers);
-                                                }}
-                                            />
-                                            <span className="ml-2 text-gray-700 dark:text-gray-300">
-                                                {user.name} ({user.email})
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-                                {errors.users && (
-                                    <p className="text-red-500 text-sm mt-2">{errors.users}</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Настройка полей */}
-                    <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-                        <div className="p-4 sm:p-6 dark:border-gray-800">
-                                {visibleFieldsInOrder.length > 0 && (
-                                    <div className="mb-6">
-                                        <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3">
-                                            Видимые поля ({visibleFieldsInOrder.length})
-                                        </h3>
-                                        <DndContext
-                                            sensors={sensors}
-                                            collisionDetection={closestCenter}
-                                            onDragEnd={handleDragEnd}
-                                        >
-                                            <SortableContext items={visibleFieldsInOrder} strategy={verticalListSortingStrategy}>
-                                                <div className="space-y-2">
-                                                    {visibleFieldsInOrder.map(fieldName => (
-                                                        <SortableFieldItem
-                                                            key={fieldName}
-                                                            fieldName={fieldName}
-                                                            fieldTitle={availableFields[fieldName]}
-                                                            isVisible={true}
-                                                            onToggle={handleFieldToggle}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </SortableContext>
-                                        </DndContext>
-                                    </div>
-                                )}
-
-                                {/* Скрытые поля */}
-                                {hiddenFields.length > 0 && (
-                                    <div>
-                                        <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3">
-                                            Скрытые поля ({hiddenFields.length})
-                                        </h3>
-                                        <div className="space-y-2">
-                                            {hiddenFields.map(([fieldName, fieldTitle]) => (
-                                                <div
-                                                    key={fieldName}
-                                                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-200 dark:bg-gray-900"
-                                                >
-                                                    <div className="flex items-center flex-1 gap-3">
-                                                        <Checkbox
-                                                            checked={false}
-                                                            onChange={(e) => handleFieldToggle(fieldName, e.target.checked)}
-                                                            className=""
-                                                        />
-                                                        
-                                                        <div className="flex-1">
-                                                            <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                                                                {fieldTitle}
-                                                            </div>
-                                                            <div className="text-sm text-gray-500 dark:text-gray-500">
-                                                                {fieldName}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleFieldToggle(fieldName, true)}
-                                                        className="ml-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                                        title="Показать поле"
-                                                    >
-                                                        <EyeOff size={16} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {Object.keys(availableFields).length === 0 && (
-                                    <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-                                        Поля не найдены
-                                    </p>
-                                )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <div className="grid grid-cols-1 gap-6 p-5 xl:grid-cols-2">
+                    <div className="space-y-5">
                         <div>
-                        <PrimaryButton disabled={processing}>
-                        {processing ? 'Сохранение...' : 'Сохранить'}
-                        </PrimaryButton>
+                            <InputLabel htmlFor="name" value="Название *" />
+                            <TextInput id="name" value={data.name} onChange={(e) => setData('name', e.target.value)} />
+                            <FieldError message={errors.name} />
+                        </div>
+
+                        <div>
+                            <InputLabel value="Интеграция" />
+                            <div className="mt-2 flex flex-wrap gap-3">
+                                {integrationOptions.map(integration => (
+                                    <label key={integration} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                        <Checkbox checked={data.integrations.includes(integration)} onChange={() => toggleIntegration(integration)} />
+                                        <span>{integration}</span>
+                                    </label>
+                                ))}
+                            </div>
+                            <FieldError message={errors.integrations} />
+                        </div>
+
+                        <div>
+                            <InputLabel value="Инвайтинг" />
+                            <div className="space-y-4">
+                                {data.inviting_sources.map((source, index) => (
+                                    <div key={index} className="grid grid-cols-[1fr_auto] gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                                        <div className="space-y-3">
+                                            <div>
+                                                <InputLabel value="Группа" />
+                                                <TextInput value={source.group} onChange={(e) => setInvite(index, 'group', e.target.value)} placeholder="https://t.me/realtor_commercial" />
+                                            </div>
+                                            <div>
+                                                <InputLabel value="Канал" />
+                                                <TextInput value={source.channel} onChange={(e) => setInvite(index, 'channel', e.target.value)} placeholder="https://t.me/realtor_commercial_channel" />
+                                            </div>
+                                        </div>
+                                        <button type="button" onClick={() => removeInvite(index)} className="mt-7 flex h-11 w-11 items-center justify-center rounded-lg bg-red-500 text-white hover:bg-red-600">
+                                            <Trash2 className="size-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <button type="button" onClick={addInvite} className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500 text-white hover:bg-brand-600">
+                                    <Plus className="size-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className="flex items-center justify-between gap-3">
+                                <InputLabel htmlFor="mailing_groups" value="Рассылка по группам" />
+                                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-400">
+                                    <Checkbox checked={data.use_own_groups} onChange={(e) => setUseOwnGroups(e.target.checked)} />
+                                    <span>Наши группы</span>
+                                </label>
+                            </div>
+                            <textarea
+                                id="mailing_groups"
+                                rows={5}
+                                className={`${fieldClass} ${data.use_own_groups ? 'opacity-50' : ''}`}
+                                value={data.mailing_groups}
+                                onChange={(e) => setData('mailing_groups', e.target.value)}
+                                disabled={data.use_own_groups}
+                            />
+                        </div>
+
+                        <div>
+                            <InputLabel htmlFor="mailing_phones" value="Рассылка по номеру" />
+                            <textarea id="mailing_phones" rows={5} className={fieldClass} value={data.mailing_phones} onChange={(e) => setData('mailing_phones', e.target.value)} />
+                        </div>
+
+                        <div>
+                            <InputLabel htmlFor="mailing_usernames" value="Рассылка по user name" />
+                            <textarea id="mailing_usernames" rows={5} className={fieldClass} value={data.mailing_usernames} onChange={(e) => setData('mailing_usernames', e.target.value)} />
                         </div>
                     </div>
-                
-                
+
+                    <div className="space-y-5">
+                        <div>
+                            <InputLabel htmlFor="parsing_sources" value="Парсинг" />
+                            <textarea id="parsing_sources" rows={6} className={fieldClass} value={data.parsing_sources} onChange={(e) => setData('parsing_sources', e.target.value)} />
+                        </div>
+
+                        <div>
+                            <InputLabel htmlFor="mailing_text" value="Текст рассылки" />
+                            <textarea id="mailing_text" rows={8} className={fieldClass} value={data.mailing_text} onChange={(e) => setData('mailing_text', e.target.value)} />
+                        </div>
+
+                        <div>
+                            <InputLabel value="Изображение" />
+                            <label className="mt-1 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-brand-500 p-6 text-center transition hover:border-brand-600 dark:border-brand-500">
+                                {previewUrl ? (
+                                    <img src={previewUrl} alt="Preview" className="max-h-64 rounded-lg object-contain" />
+                                ) : (
+                                    <div className="flex flex-col items-center gap-3 text-gray-500 dark:text-gray-400">
+                                        <Upload className="size-8" />
+                                        <span className="text-sm font-medium">Добавить изображение</span>
+                                    </div>
+                                )}
+                                <input className="hidden" type="file" accept="image/*" onChange={(e) => handleImage(e.target.files?.[0])} />
+                            </label>
+                            <FieldError message={errors.image} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex justify-end border-t border-gray-200 p-5 dark:border-gray-800">
+                    <PrimaryButton disabled={processing} className="w-auto px-6">
+                        {processing ? 'Сохранение...' : 'Сохранить'}
+                    </PrimaryButton>
                 </div>
             </form>
         </AuthenticatedLayout>

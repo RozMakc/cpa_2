@@ -303,7 +303,7 @@ class ExportController extends Controller
             'name' => $lead->name ?? '-',
             'email' => $lead->email ?? '-',
             'phone' => $lead->phone ?? '-',
-            'tg_channel' => $lead->tg_channel ?? '-',
+            'tg_channel' => $lead->is_our_channel ? '-' : ($lead->tg_channel ?? '-'),
             'status' => $this->getStatusLabel($lead->status ?? 'new'),
             'price' => $lead->price ?? '-',
             'currency' => $lead->currency ?? '-',

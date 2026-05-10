@@ -291,7 +291,7 @@ export default function ProjectLeadTable({
             'name': lead.name,
             'email': lead.email,
             'phone': lead.phone,
-            'tg_channel': lead.tg_channel,
+            'tg_channel': lead.is_our_channel ? '-' : lead.tg_channel,
             'status': lead.status,
             'price': lead.price,
             'currency': lead.currency,

@@ -243,6 +243,7 @@ class LeadController extends Controller
     public function store(Request $request)
     {
         $this->normalizeTgChannel($request);
+        $this->normalizeIsOurChannel($request);
 
         $validator = Validator::make($request->all(), [
             'offer_id' => 'nullable|exists:offers,id',
@@ -258,6 +259,7 @@ class LeadController extends Controller
             'phone' => 'nullable|string|max:20',
             'comment' => 'nullable|string',
             'tg_channel' => 'nullable|string|max:255',
+            'is_our_channel' => 'nullable|boolean',
             'currency' => 'nullable|string|size:3',
             'utm_source' => 'nullable|string|max:100',
             'utm_medium' => 'nullable|string|max:100',
@@ -306,6 +308,7 @@ class LeadController extends Controller
     public function externalStore(Request $request)
     {
         $this->normalizeTgChannel($request);
+        $this->normalizeIsOurChannel($request);
 
         [$apiKey, $apiKeySource] = $this->resolveExternalApiKey($request);
         $expectedApiKey = trim((string) config('services.external_leads.key'));
@@ -341,6 +344,7 @@ class LeadController extends Controller
             'phone' => 'nullable|string|max:50',
             'comment' => 'nullable|string',
             'tg_channel' => 'nullable|string|max:255',
+            'is_our_channel' => 'nullable|boolean',
             'status' => 'nullable|string|max:255',
             'is_counted' => 'nullable|boolean',
             'type' => 'nullable|string|max:255',
@@ -476,6 +480,20 @@ class LeadController extends Controller
         foreach (['telegram_channel', 'tg', 'ТГ канал'] as $alias) {
             if ($request->filled($alias)) {
                 $request->merge(['tg_channel' => $request->input($alias)]);
+                return;
+            }
+        }
+    }
+
+    private function normalizeIsOurChannel(Request $request): void
+    {
+        if ($request->has('is_our_channel')) {
+            return;
+        }
+
+        foreach (['our_channel', 'is_own_channel', 'own_channel', 'наш канал', 'Наш канал'] as $alias) {
+            if ($request->has($alias)) {
+                $request->merge(['is_our_channel' => $request->boolean($alias)]);
                 return;
             }
         }

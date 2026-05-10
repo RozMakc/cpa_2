@@ -98,6 +98,11 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
+    }
+
     /**
      * Получить все проекты, доступные пользователю
      */
@@ -107,7 +112,11 @@ class User extends Authenticatable
             return Project::with(['managers', 'client'])->get();
         }
 
-        return $this->managedProjects()->with(['client'])->get();
+        return Project::with(['managers', 'client'])
+            ->where('user_id', $this->id)
+            ->orWhereHas('managers', fn($query) => $query->where('users.id', $this->id))
+            ->orWhereHas('users', fn($query) => $query->where('users.id', $this->id))
+            ->get();
     }
 
     /**
@@ -115,6 +124,8 @@ class User extends Authenticatable
      */
     public function canAccessProject(Project $project): bool
     {
-        return $this->hasRole('admin') || $this->managedProjects->contains($project->id);
+        return $this->hasRole('admin')
+            || $project->user_id === $this->id
+            || $this->managedProjects->contains($project->id);
     }
 }

@@ -26,6 +26,11 @@ return [
         'key' => env('EXTERNAL_LEADS_API_KEY'),
     ],
 
+    'external_projects' => [
+        'url' => env('EXTERNAL_PROJECTS_API_URL'),
+        'key' => env('EXTERNAL_PROJECTS_API_KEY'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

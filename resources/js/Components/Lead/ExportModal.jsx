@@ -58,6 +58,7 @@ export default function ExportModal({ isOpen, onClose, project, fieldMappings = 
             { key: 'status', label: 'Статус', category: 'basic' },
             { key: 'is_counted', label: 'Засчитан', category: 'basic' },
             { key: 'comment', label: 'Комментарий', category: 'basic' },
+            { key: 'tg_channel', label: 'ТГ канал', category: 'basic' },
             { key: 'user.name', label: 'Менеджер', category: 'relation' },
             { key: 'offer.name', label: 'Оффер', category: 'relation' }
         ];

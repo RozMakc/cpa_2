@@ -10,12 +10,13 @@ Route::get('/user', function (Request $request) {
 
 
 Route::post('/postback/{resource}', [LeadController::class, 'postback']);
+Route::post('/external/leads', [LeadController::class, 'externalStore']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/leads', [LeadController::class, 'index']);
     Route::post('/leads', [LeadController::class, 'store']);
+    Route::get('/leads/stats', [LeadController::class, 'stats']);
     Route::get('/leads/{lead}', [LeadController::class, 'show']);
     Route::put('/leads/{lead}', [LeadController::class, 'update']);
     Route::delete('/leads/{lead}', [LeadController::class, 'destroy']);
-    Route::get('/leads/stats', [LeadController::class, 'stats']);
 });

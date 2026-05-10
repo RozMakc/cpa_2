@@ -61,6 +61,12 @@ export default function LeadTable({ leads: initialLeads,  }) {
               </TableCell>
               <TableCell
                 isHeader
+                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+              >
+                ТГ канал
+              </TableCell>
+              <TableCell
+                isHeader
                 className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
               >
                 Сумма
@@ -134,6 +140,9 @@ export default function LeadTable({ leads: initialLeads,  }) {
                   )}
 
                 </TableCell>
+                <TableCell className="px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                    {lead.tg_channel || '-'}
+                </TableCell>
                 <TableCell className="px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
                     {lead.price} {lead.currency}
                 </TableCell>
@@ -160,7 +169,7 @@ export default function LeadTable({ leads: initialLeads,  }) {
               </TableRow>
             )): (
               <TableRow>
-                <TableCell className="px-5 py-3 text-center text-gray-500 text-theme-sm dark:text-gray-400" colspan={6}>
+                <TableCell className="px-5 py-3 text-center text-gray-500 text-theme-sm dark:text-gray-400" colspan={7}>
                   Not found
                 </TableCell>
               </TableRow>

@@ -78,11 +78,18 @@ class LeadController extends Controller
 
         $offer = Offer::findOrFail($request->offer_id);
         $price = $offer->prices()->first();
-
-        $lead = Lead::create(array_merge($validated, [
+        $leadData = [
+            'offer_id' => $validated['offer_id'],
+            'offer_link_id' => $validated['offer_link_id'] ?? null,
+            'firstname' => $validated['name'],
+            'email' => $validated['email'] ?? null,
+            'phone' => $validated['phone'] ?? null,
+            'custom_fields' => $validated['custom_fields'] ?? null,
             'user_id' => auth()->id(),
-            'price' => $price->price
-        ]));
+            'price' => $price?->price ?? 0,
+        ];
+
+        $lead = Lead::create($leadData);
 
         return redirect()->route('leads.index')
             ->with('success', 'leads created successfully.');

@@ -240,6 +240,7 @@ class ProjectController extends Controller
             'vacancy' => 'Вакансия',
             'vacancy_location' => 'Локация вакансии',
             'phone' => 'Номер телефона',
+            'tg_channel' => 'ТГ канал',
             'birthday' => 'Дата рождения',
             'gender' => 'Пол',
             'created_at' => 'Дата',

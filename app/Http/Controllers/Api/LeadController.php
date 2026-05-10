@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Validator;
 
 class LeadController extends Controller
 {
+    private const SERVICE_FIELDS = ['apikey', '_token'];
+
     public function index(Request $request)
     {
         $leads = Lead::latest()->paginate($request->get('per_page', 20));
@@ -240,13 +242,22 @@ class LeadController extends Controller
 
     public function store(Request $request)
     {
+        $this->normalizeTgChannel($request);
+
         $validator = Validator::make($request->all(), [
             'offer_id' => 'required|exists:offers,id',
             'offer_link_id' => 'nullable|exists:offer_links,id',
             'country_iso' => 'nullable|string',
-            'name' => 'required|string|max:255',
+            'firstname' => 'nullable|string|max:255',
+            'lastname' => 'nullable|string|max:255',
+            'gender' => 'nullable|string|max:255',
+            'birthday' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'citizenship' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:20',
+            'comment' => 'nullable|string',
+            'tg_channel' => 'nullable|string|max:255',
             'currency' => 'nullable|string|size:3',
             'utm_source' => 'nullable|string|max:100',
             'utm_medium' => 'nullable|string|max:100',
@@ -269,23 +280,14 @@ class LeadController extends Controller
         }
 
         $offer = Offer::findOrFail($request->offer_id);
-        $price=0;
-        if($request->country_iso){
-            $country = Country::where('iso_name', $request->country_iso)->first();
-            if($country){
-                $price = $offer->prices()->where('country_id', $country->id)->first();
-            }
-        }
-        if(!$price){
-            $price = $offer->prices()->whereNull('country_id')->first();
-        }
+        $price = $this->findOfferPrice($offer, $request->country_iso);
 
         try {
             $lead = Lead::create(array_merge($validator->validated(), [
                 'user_id' => auth()->id(),
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
-                'price' => $price->price
+                'price' => $price,
             ]));
 
             return response()->json([
@@ -297,6 +299,104 @@ class LeadController extends Controller
             return response()->json([
                 'error' => 'Failed to create lead',
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function externalStore(Request $request)
+    {
+        $this->normalizeTgChannel($request);
+
+        $apiKey = $request->bearerToken() ?: $request->header('X-Api-Key') ?: $request->input('apikey');
+        $expectedApiKey = config('services.external_leads.key');
+
+        if (!$expectedApiKey || !$apiKey || !hash_equals($expectedApiKey, $apiKey)) {
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'Wrong ApiKey',
+            ], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required|exists:users,id',
+            'offer_id' => 'required|exists:offers,id',
+            'offer_link_id' => 'nullable|exists:offer_links,id',
+            'link_id' => 'nullable|exists:links,id',
+            'project_id' => 'nullable|exists:projects,id',
+            'country_iso' => 'nullable|string|max:2',
+            'firstname' => 'nullable|string|max:255',
+            'lastname' => 'nullable|string|max:255',
+            'gender' => 'nullable|string|max:255',
+            'birthday' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'citizenship' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:50',
+            'comment' => 'nullable|string',
+            'tg_channel' => 'nullable|string|max:255',
+            'status' => 'nullable|string|max:255',
+            'is_counted' => 'nullable|boolean',
+            'type' => 'nullable|string|max:255',
+            'price' => 'nullable|numeric',
+            'currency' => 'nullable|string|size:3',
+            'products' => 'nullable|string',
+            'utm_source' => 'nullable|string|max:255',
+            'utm_medium' => 'nullable|string|max:255',
+            'utm_campaign' => 'nullable|string|max:255',
+            'utm_term' => 'nullable|string|max:255',
+            'utm_content' => 'nullable|string|max:255',
+            'sub1' => 'nullable|string|max:255',
+            'sub2' => 'nullable|string|max:255',
+            'sub3' => 'nullable|string|max:255',
+            'sub4' => 'nullable|string|max:255',
+            'sub5' => 'nullable|string|max:255',
+            'custom_fields' => 'nullable|array',
+            'additional_data' => 'nullable|array',
+            'created_at' => 'nullable|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'Validation failed',
+                'messages' => $validator->errors(),
+            ], 422);
+        }
+
+        $validated = $validator->validated();
+        $offer = Offer::findOrFail($validated['offer_id']);
+        $additionalData = $validated['additional_data'] ?? [];
+
+        foreach ($request->all() as $key => $value) {
+            if (in_array($key, self::SERVICE_FIELDS, true) || array_key_exists($key, $validated)) {
+                continue;
+            }
+
+            $additionalData[$key] = $value;
+        }
+
+        unset($validated['country_iso'], $validated['additional_data']);
+
+        try {
+            $lead = Lead::create(array_merge($validated, [
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'price' => $validated['price'] ?? $this->findOfferPrice($offer, $request->country_iso),
+                'additional_data' => $additionalData ?: null,
+            ]));
+
+            return response()->json([
+                'data' => $lead,
+                'message' => 'Lead created successfully',
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('Failed to create external lead: ' . $e->getMessage(), [
+                'user_id' => $validated['user_id'] ?? null,
+                'payload' => $request->except(self::SERVICE_FIELDS),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to create lead',
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -356,5 +456,39 @@ class LeadController extends Controller
         return response()->json([
             'data' => $stats
         ]);
+    }
+
+    private function normalizeTgChannel(Request $request): void
+    {
+        if ($request->filled('tg_channel')) {
+            return;
+        }
+
+        foreach (['telegram_channel', 'tg', 'ТГ канал'] as $alias) {
+            if ($request->filled($alias)) {
+                $request->merge(['tg_channel' => $request->input($alias)]);
+                return;
+            }
+        }
+    }
+
+    private function findOfferPrice(Offer $offer, ?string $countryIso = null): float
+    {
+        if ($countryIso) {
+            $country = Country::where('iso_name', $countryIso)->first();
+
+            if ($country) {
+                $price = $offer->prices()->where('country_id', $country->id)->first();
+
+                if ($price) {
+                    return (float) $price->price;
+                }
+            }
+        }
+
+        $price = $offer->prices()->whereNull('country_id')->first()
+            ?: $offer->prices()->first();
+
+        return $price ? (float) $price->price : 0;
     }
 }

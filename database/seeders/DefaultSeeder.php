@@ -20,7 +20,7 @@ class DefaultSeeder extends Seeder
             'name' => 'Admin',
             'email' => 'admin@site.com',
             'phone' => '79000000000',
-            'password' => Hash::make('123123132'),
+            'password' => Hash::make('123123123'),
         ]);
 
         $user->assignRole('admin');

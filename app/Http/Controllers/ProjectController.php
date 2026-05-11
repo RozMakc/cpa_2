@@ -14,7 +14,8 @@ class ProjectController extends Controller
 {
     public function index()
     {
-        $projects = Project::with(['managers', 'users', 'client', 'owner'])
+        $projects = Project::with(['owner'])
+            ->withCount('leads')
             ->when(!auth()->user()->hasRole('admin'), function ($query) {
                 $query->where('user_id', auth()->id())
                     ->orWhereHas('managers', fn($managerQuery) => $managerQuery->where('users.id', auth()->id()))

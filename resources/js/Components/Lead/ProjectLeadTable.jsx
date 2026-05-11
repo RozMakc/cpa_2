@@ -14,6 +14,19 @@ import LeadStatusSelect from './LeadStatusSelect';
 import { useEffect, useState } from 'react';
 import Checkbox from '../Checkbox';
 
+const rowStatusClass = (status) => ({
+    new: 'bg-blue-50/70 dark:bg-blue-500/10',
+    invited: 'bg-cyan-50/70 dark:bg-cyan-500/10',
+    accepted: 'bg-green-50/70 dark:bg-green-500/10',
+    no_answer: 'bg-yellow-50/70 dark:bg-yellow-500/10',
+    self_rejected: 'bg-orange-50/70 dark:bg-orange-500/10',
+    rejected: 'bg-red-50/70 dark:bg-red-500/10',
+    invalid_number: 'bg-red-50/70 dark:bg-red-500/10',
+    duplicate: 'bg-gray-100/80 dark:bg-white/5',
+    test: 'bg-purple-50/70 dark:bg-purple-500/10',
+    other: 'bg-slate-50 dark:bg-white/[0.03]',
+}[status] || '');
+
 export default function ProjectLeadTable({ 
     leads: initialLeads, 
     project, 
@@ -297,7 +310,7 @@ export default function ProjectLeadTable({
             'currency': lead.currency,
             'created_at': lead.created_at,
             'user': lead.user,
-            'offer': lead.offer,
+            'project': lead.project,
         };
 
         // Если поле стандартное
@@ -389,7 +402,7 @@ export default function ProjectLeadTable({
                 );
             case 'offer':
                 return value ? (
-                    <Link href={route('offer.show', value.id)}>
+                    <Link href={route('projects.show', value.id)}>
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 overflow-hidden rounded-md">
                                 <img
@@ -499,7 +512,7 @@ export default function ProjectLeadTable({
                 <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                     {leads.data.length > 0 ? 
                     leads.data.map((lead) => (
-                        <TableRow key={lead.id}>
+                        <TableRow key={lead.id} className={rowStatusClass(lead.status)}>
                             <TableCell className="px-5 py-3 text-center">
                                 <Checkbox
                                     id={`select_lead_${lead.id}`}

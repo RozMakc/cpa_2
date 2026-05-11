@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lead;
-use App\Models\Offer;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -16,7 +16,7 @@ class LeadController extends Controller
     public function index(Request $request)
     {
         
-        $leads = Lead::with(['offer', 'user', 'link'])
+        $leads = Lead::with(['project', 'user'])
             ->when(!auth()->user()->hasRole('admin'), function($query) {
                 $query->where('user_id', auth()->id());
             })
@@ -56,7 +56,7 @@ class LeadController extends Controller
      */
     public function create()
     {
-        $offers = Offer::with('links')->where('is_active', 1)->get();
+        $offers = Project::where('status', 'active')->get();
         return Inertia::render('Leads/Create', [
             'offers' => $offers,
         ]);
@@ -68,25 +68,21 @@ class LeadController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'offer_id' => 'required|exists:offers,id',
-            'offer_link_id' => 'nullable|exists:offer_links,id',
+            'project_id' => 'nullable|exists:projects,id',
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:20',
             'custom_fields' => 'nullable|array',
         ]);
 
-        $offer = Offer::findOrFail($request->offer_id);
-        $price = $offer->prices()->first();
         $leadData = [
-            'offer_id' => $validated['offer_id'],
-            'offer_link_id' => $validated['offer_link_id'] ?? null,
+            'project_id' => $validated['project_id'] ?? null,
             'firstname' => $validated['name'],
             'email' => $validated['email'] ?? null,
             'phone' => $validated['phone'] ?? null,
             'custom_fields' => $validated['custom_fields'] ?? null,
             'user_id' => auth()->id(),
-            'price' => $price?->price ?? 0,
+            'price' => 0,
         ];
 
         $lead = Lead::create($leadData);
@@ -100,7 +96,7 @@ class LeadController extends Controller
      */
     public function show(Lead $lead)
     {
-        $lead->load(['offer', 'user', 'link']);
+        $lead->load(['project', 'user']);
 
         return Inertia::render('Leads/Show', [
             'lead' => $lead

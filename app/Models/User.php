@@ -4,7 +4,6 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -67,11 +66,6 @@ class User extends Authenticatable
         return $this->createToken('api-token', ['*'])->plainTextToken;
     }
 
-    public function links(): HasMany
-    {
-        return $this->hasMany(Link::class);
-    }
-
     public function documents(): HasOne
     {
         return $this->hasOne(UserDocument::class);
@@ -98,7 +92,7 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
-    public function projects(): HasMany
+    public function projects()
     {
         return $this->hasMany(Project::class);
     }

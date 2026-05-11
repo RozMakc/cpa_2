@@ -13,14 +13,11 @@ return new class extends Migration
     {
         Schema::table('projects', function (Blueprint $table) {
             $table->date('start_date')->nullable()->change();
-            $table->dropForeign(['offer_id']);
-            $table->foreignId('offer_id')->nullable()->change();
-            $table->foreign('offer_id')->references('id')->on('offers')->nullOnDelete();
         });
 
         $columns = [
             'user_id' => fn(Blueprint $table) => $table->foreignId('user_id')->nullable()->after('id')->constrained()->nullOnDelete(),
-            'integration_id' => fn(Blueprint $table) => $table->foreignId('integration_id')->nullable()->after('offer_id')->constrained()->nullOnDelete(),
+            'integration_id' => fn(Blueprint $table) => $table->foreignId('integration_id')->nullable()->after('client_id')->constrained()->nullOnDelete(),
             'integrations' => fn(Blueprint $table) => $table->json('integrations')->nullable()->after('integration_id'),
             'parsing_sources' => fn(Blueprint $table) => $table->text('parsing_sources')->nullable()->after('integrations'),
             'inviting_sources' => fn(Blueprint $table) => $table->json('inviting_sources')->nullable()->after('parsing_sources'),
@@ -74,11 +71,7 @@ return new class extends Migration
                 Schema::hasColumn('projects', 'sync_error') ? 'sync_error' : null,
                 Schema::hasColumn('projects', 'synced_at') ? 'synced_at' : null,
             ])));
-
-            $table->dropForeign(['offer_id']);
             $table->date('start_date')->nullable(false)->change();
-            $table->foreignId('offer_id')->nullable(false)->change();
-            $table->foreign('offer_id')->references('id')->on('offers')->cascadeOnDelete();
         });
     }
 };

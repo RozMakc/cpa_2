@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('name');
             $table->date('start_date')->nullable();
             $table->foreignId('client_id')->nullable()->constrained()->onDelete('cascade');
-            $table->foreignId('offer_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('integration_id')->nullable()->constrained()->nullOnDelete();
             $table->json('integrations')->nullable();
             $table->text('parsing_sources')->nullable();
@@ -33,7 +32,7 @@ return new class extends Migration
             $table->text('sync_error')->nullable();
             $table->timestamp('synced_at')->nullable();
             $table->json('visible_fields')->nullable();
-            $table->string('status')->default('active');
+            $table->string('status')->default('paused');
             $table->boolean('is_private')->default(false);
             $table->timestamps();
         });

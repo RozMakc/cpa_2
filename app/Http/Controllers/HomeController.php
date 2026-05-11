@@ -3,9 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lead;
-use App\Models\Link;
-use App\Models\Offer;
-use App\Models\Traffic;
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,14 +21,14 @@ class HomeController extends Controller
 
     public function dashboard(){
         $users_count = 0;
-        $offers_count = Offer::count();
+        $offers_count = Project::count();
         $thirtyDaysAgo = now()->subDays(30);
 
         if(Auth::user()->hasRole('admin')){
             $users_count = User::withoutRole('admin')->count();
-            $leads = Lead::with(['offer', 'user', 'link'])->orderBy('created_at', 'desc')->paginate(10);
+            $leads = Lead::with(['project', 'user'])->orderBy('created_at', 'desc')->paginate(10);
             
-            $clicks_count = Traffic::count();
+            $clicks_count = 0;
             $leads_count = Lead::count();
 
             $conversionsData = Lead::where('created_at', '>=', $thirtyDaysAgo)
@@ -39,18 +37,14 @@ class HomeController extends Controller
             ->orderBy('date')
             ->get();
 
-            $clicksData = Traffic::where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
+            $clicksData = collect();
 
         }else{
             
-            $leads = Lead::with(['offer', 'link'])->orderBy('created_at', 'desc')
+            $leads = Lead::with(['project'])->orderBy('created_at', 'desc')
             ->where('user_id', Auth::user()->id)
             ->paginate(10);
-            $clicks_count = Traffic::where('user_id', Auth::user()->id)->count();
+            $clicks_count = 0;
             $leads_count = Lead::where('user_id', Auth::user()->id)->count();
 
             $conversionsData = Lead::where('created_at', '>=', $thirtyDaysAgo)
@@ -60,12 +54,7 @@ class HomeController extends Controller
             ->orderBy('date')
             ->get();
 
-            $clicksData = Traffic::where('created_at', '>=', $thirtyDaysAgo)
-            ->where('user_id', Auth::user()->id)
-            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
+            $clicksData = collect();
 
         }
     

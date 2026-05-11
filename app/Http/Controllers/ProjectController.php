@@ -45,11 +45,12 @@ class ProjectController extends Controller
             $projectData['image_path'] = $request->file('image')->store('projects', 'public');
         }
 
+        $projectData['status'] = 'paused';
         $projectData['sync_status'] = 'queued';
         $projectData['sync_error'] = null;
 
         $project = Project::create($projectData);
-        SyncProjectToExternalService::dispatch($project->id)->afterCommit();
+        SyncProjectToExternalService::dispatch($project->id, 'create')->afterCommit();
 
         return redirect()->route('projects.index')->with('success', 'Проект создан успешно');
     }
@@ -135,7 +136,7 @@ class ProjectController extends Controller
         $projectData['sync_error'] = null;
 
         $project->update($projectData);
-        SyncProjectToExternalService::dispatch($project->id)->afterCommit();
+        SyncProjectToExternalService::dispatch($project->id, 'update')->afterCommit();
 
         return redirect()->route('projects.index')->with('success', 'Проект обновлен успешно');
     }
@@ -144,11 +145,29 @@ class ProjectController extends Controller
     {
         $this->authorizeProjectMutation($project);
 
+        $deletePayload = $this->projectDeletePayload($project);
+        SyncProjectToExternalService::dispatch($project->id, 'delete', $deletePayload)->afterCommit();
+
         if ($project->image_path) {
             Storage::disk('public')->delete($project->image_path);
         }
 
         $project->delete();
+
+        return back();
+    }
+
+    public function toggleStatus(Project $project)
+    {
+        $this->authorizeProjectMutation($project);
+
+        $project->update([
+            'status' => $project->status === 'active' ? 'paused' : 'active',
+            'sync_status' => 'queued',
+            'sync_error' => null,
+        ]);
+
+        SyncProjectToExternalService::dispatch($project->id, 'status')->afterCommit();
 
         return back();
     }
@@ -186,7 +205,6 @@ class ProjectController extends Controller
             'name' => 'required|string|max:255',
             'start_date' => 'nullable|date',
             'client_id' => 'nullable|exists:clients,id',
-            'offer_id' => 'nullable|exists:offers,id',
             'integration_id' => 'nullable|exists:integrations,id',
             'integrations' => 'nullable|array',
             'integrations.*' => 'in:whatsapp,telegram,max',
@@ -208,7 +226,7 @@ class ProjectController extends Controller
         unset($validated['image']);
 
         $validated['start_date'] = $validated['start_date'] ?? now()->toDateString();
-        $validated['status'] = 'active';
+        $validated['status'] = $validated['status'] ?? 'paused';
         $validated['is_private'] = false;
         $validated['integrations'] = array_values($validated['integrations'] ?? []);
         $validated['inviting_sources'] = collect($validated['inviting_sources'] ?? [])
@@ -283,5 +301,17 @@ class ProjectController extends Controller
     protected function authorizeProjectMutation(Project $project): void
     {
         abort_unless(auth()->user()->hasRole('admin') || $project->user_id === auth()->id(), 403);
+    }
+
+    protected function projectDeletePayload(Project $project): array
+    {
+        return [
+            'action' => 'delete',
+            'id' => $project->id,
+            'project_id' => $project->id,
+            'external_id' => $project->external_id,
+            'user_id' => $project->user_id,
+            'status' => $project->status,
+        ];
     }
 }

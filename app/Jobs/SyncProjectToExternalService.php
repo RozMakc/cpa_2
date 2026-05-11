@@ -20,7 +20,11 @@ class SyncProjectToExternalService implements ShouldQueue
 
     public int $backoff = 60;
 
-    public function __construct(public int $projectId)
+    public function __construct(
+        public int $projectId,
+        public string $action = 'upsert',
+        public ?array $payload = null,
+    )
     {
     }
 
@@ -28,7 +32,7 @@ class SyncProjectToExternalService implements ShouldQueue
     {
         $project = Project::find($this->projectId);
 
-        if (!$project) {
+        if (!$project && !$this->payload) {
             return;
         }
 
@@ -36,28 +40,36 @@ class SyncProjectToExternalService implements ShouldQueue
         $apiKey = config('services.external_projects.key');
 
         if (!$url) {
-            $project->update([
-                'sync_status' => 'error',
-                'sync_error' => 'EXTERNAL_PROJECTS_API_URL is not configured',
-            ]);
+            if ($project) {
+                $project->update([
+                    'sync_status' => 'error',
+                    'sync_error' => 'EXTERNAL_PROJECTS_API_URL is not configured',
+                ]);
+            }
 
             return;
         }
 
-        $project->update([
-            'sync_status' => 'running',
-            'sync_error' => null,
-        ]);
+        if ($project) {
+            $project->update([
+                'sync_status' => 'running',
+                'sync_error' => null,
+            ]);
+        }
 
         $response = Http::timeout(20)
             ->acceptJson()
             ->when($apiKey, fn($request) => $request->withHeader('X-Api-Key', $apiKey))
-            ->post($url, $this->payload($project));
+            ->post($url, $this->payload ?? $this->payload($project));
 
         if (!$response->successful()) {
             $message = trim($response->body()) ?: "HTTP {$response->status()}";
 
             throw new RuntimeException("External project sync failed: {$message}");
+        }
+
+        if (!$project) {
+            return;
         }
 
         $responseData = $response->json();
@@ -81,8 +93,12 @@ class SyncProjectToExternalService implements ShouldQueue
     private function payload(Project $project): array
     {
         return [
+            'action' => $this->action,
             'id' => $project->id,
+            'project_id' => $project->id,
             'external_id' => $project->external_id,
+            'user_id' => $project->user_id,
+            'status' => $project->status,
             'name' => $project->name,
             'integrations' => $project->integrations ?? [],
             'parsing_sources' => $project->parsing_sources,

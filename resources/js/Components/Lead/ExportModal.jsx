@@ -35,7 +35,7 @@ export default function ExportModal({ isOpen, onClose, project, fieldMappings = 
             if (['id', 'created_at', 'status', 'is_counted', 'comment'].includes(fieldName)) {
                 return 'basic';
             }
-            if (fieldName.includes('.') || ['user.name', 'offer.name'].includes(fieldName)) {
+            if (fieldName.includes('.') || ['user.name', 'project.name'].includes(fieldName)) {
                 return 'relation';
             }
             if (fieldMappings[fieldName] && fieldMappings[fieldName].startsWith('additional_data.')) {

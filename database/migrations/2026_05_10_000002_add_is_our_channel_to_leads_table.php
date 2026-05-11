@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('leads', function (Blueprint $table) {
-            $table->boolean('is_our_channel')->default(false)->after('tg_channel');
-        });
+        if (!Schema::hasColumn('leads', 'is_our_channel')) {
+            Schema::table('leads', function (Blueprint $table) {
+                $table->boolean('is_our_channel')->default(false)->after('tg_channel');
+            });
+        }
     }
 
     /**
@@ -21,8 +23,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('leads', function (Blueprint $table) {
-            $table->dropColumn('is_our_channel');
-        });
+        if (Schema::hasColumn('leads', 'is_our_channel')) {
+            Schema::table('leads', function (Blueprint $table) {
+                $table->dropColumn('is_our_channel');
+            });
+        }
     }
 };

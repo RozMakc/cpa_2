@@ -3,8 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Integration extends Model
 {
@@ -21,19 +19,9 @@ class Integration extends Model
         'settings' => 'array',
     ];
 
-    public function offers(): HasMany
-    {
-        return $this->hasMany(Offer::class);
-    }
-    
     public static function getForProject(Project $project): ?Integration
     {
-        if (!$project->offer_id) {
-            return null;
-        }
-
-        $offer = Offer::with('integration')->find($project->offer_id);
-        return $offer?->integration;
+        return $project->getIntegration();
     }
 
     /**
